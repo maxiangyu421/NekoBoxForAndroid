@@ -54,6 +54,9 @@ jobs:
       - name: Gradle Build
         env:
           BUILD_PLUGIN: none
+          KEYSTORE_PASS: nbx-gost-1350
+          ALIAS_NAME: nbxgost
+          ALIAS_PASS: nbx-gost-1350
         run: |
           echo "sdk.dir=${ANDROID_HOME}" > local.properties
           echo "ndk.dir=${ANDROID_HOME}/ndk/25.0.8775105" >> local.properties
