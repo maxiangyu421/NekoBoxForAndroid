@@ -12,6 +12,22 @@ fun ShadowsocksBean.fixPluginName() {
     }
 }
 
+// gost original distribution format compatibility (fork):
+// ss://<base64 method:password@host:port>?gost=<base64 JSON {"path","host","route"}>#tag
+// converts the gost query param into a SIP003 plugin string for the gost kernel plugin
+fun applyGostParam(bean: ShadowsocksBean, gostB64: String?) {
+    if (bean.plugin.isNotBlank() || gostB64.isNullOrBlank()) return
+    val json = runCatching { JSONObject(gostB64.decodeBase64UrlSafe()) }.getOrNull() ?: return
+    val route = json.optString("route", "ws")
+    if (route !in listOf("ws", "mws", "wss", "mwss")) return
+    var p = "gost-plugin;mode=websocket"
+    json.optString("host").takeIf { it.isNotBlank() }?.let { p += ";host=$it" }
+    json.optString("path").takeIf { it.isNotBlank() }?.let { p += ";path=$it" }
+    p += if (route == "mws" || route == "mwss") ";mux=1" else ";mux=0"
+    if (route == "wss" || route == "mwss") p += ";tls"
+    bean.plugin = p
+}
+
 fun parseShadowsocks(url: String): ShadowsocksBean {
 
     if (url.substringBefore("#").contains("@")) {
@@ -38,6 +54,7 @@ fun parseShadowsocks(url: String): ShadowsocksBean {
                 plugin = link.queryParameter("plugin") ?: ""
                 name = link.fragment
                 fixPluginName()
+                applyGostParam(this, link.queryParameter("gost"))
             }
         }
 
@@ -51,6 +68,7 @@ fun parseShadowsocks(url: String): ShadowsocksBean {
             plugin = link.queryParameter("plugin") ?: ""
             name = link.fragment
             fixPluginName()
+            applyGostParam(this, link.queryParameter("gost"))
         }
     } else {
         // v2rayN style
@@ -58,8 +76,16 @@ fun parseShadowsocks(url: String): ShadowsocksBean {
 
         if (v2Url.contains("#")) v2Url = v2Url.substringBefore("#")
 
-        val link = ("https://" + v2Url.substringAfter("ss://")
-            .decodeBase64UrlSafe()).toHttpUrlOrNull() ?: error("invalid v2rayN link $url")
+        // split query before base64 decode: gost/uot params live in the query
+        val b64Part = v2Url.substringAfter("ss://").substringBefore("?")
+        val queryPart = if (v2Url.contains("?")) v2Url.substringAfter("?") else ""
+        val queryLink = if (queryPart.isNotBlank()) {
+            ("https://g/?$queryPart").toHttpUrlOrNull()
+        } else {
+            null
+        }
+
+        val link = ("https://" + b64Part.decodeBase64UrlSafe()).toHttpUrlOrNull() ?: error("invalid v2rayN link $url")
 
         return ShadowsocksBean().apply {
             serverAddress = link.host
@@ -69,6 +95,7 @@ fun parseShadowsocks(url: String): ShadowsocksBean {
             plugin = ""
             val remarks = url.substringAfter("#").unUrlSafe()
             if (remarks.isNotBlank()) name = remarks
+            applyGostParam(this, queryLink?.queryParameter("gost"))
         }
     }
 
