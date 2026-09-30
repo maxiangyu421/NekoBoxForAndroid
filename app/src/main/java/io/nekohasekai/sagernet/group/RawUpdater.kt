@@ -272,7 +272,7 @@ object RawUpdater : GroupUpdater() {
                         "ss" -> {
                             val ssPlugin = mutableListOf<String>()
                             if (proxy.contains("plugin")) {
-                                val opts = proxy["plugin-opts"] as Map<String, Any?>
+                                val opts = (proxy["plugin-opts"] as? Map<String, Any?>) ?: emptyMap<String, Any?>()
                                 when (proxy["plugin"]) {
                                     "obfs" -> {
                                         ssPlugin.apply {
@@ -286,10 +286,22 @@ object RawUpdater : GroupUpdater() {
                                         ssPlugin.apply {
                                             add("v2ray-plugin")
                                             add("mode=" + (opts["mode"]?.toString() ?: ""))
-                                            if (opts["mode"]?.toString() == "true") add("tls")
+                                            if (opts["tls"]?.toString() == "true") add("tls")
                                             add("host=" + (opts["host"]?.toString() ?: ""))
                                             add("path=" + (opts["path"]?.toString() ?: ""))
                                             if (opts["mux"]?.toString() == "true") add("mux=8")
+                                        }
+                                    }
+
+                                    "gost-plugin" -> {
+                                        ssPlugin.apply {
+                                            add("gost-plugin")
+                                            add("mode=" + (opts["mode"]?.toString() ?: "websocket"))
+                                            if (opts["host"]?.toString()?.isNotBlank() == true) add("host=" + opts["host"].toString())
+                                            if (opts["path"]?.toString()?.isNotBlank() == true) add("path=" + opts["path"].toString())
+                                            // gost kernel plugin defaults to mux=on (mws); ws nodes must pass mux=0
+                                            if (opts["mux"]?.toString() == "true") add("mux=1") else add("mux=0")
+                                            if (opts["tls"]?.toString() == "true") add("tls")
                                         }
                                     }
                                 }
